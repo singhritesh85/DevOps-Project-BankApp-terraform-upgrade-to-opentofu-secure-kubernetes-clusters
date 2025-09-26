@@ -1,0 +1,58 @@
+---
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sDisallowPrivileged
+metadata:
+  name: psp-privileged-container
+spec:
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+    namespaces:
+      - "bankapp"
+      - "mysql"
+---
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: LoadBalancerConstraint
+metadata:
+  name: loadbalancerconstraint
+spec:
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Service"]
+    namespaces:
+      - "bankapp"
+      - "mysql"
+---
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sContainerResourceRequirements
+metadata:
+  name: pod-resource-requirements
+spec:
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+      - apiGroups: ["apps"]
+        kinds: ["Deployment", "StatefulSet", "DaemonSet"]
+    namespaces:
+      - "bankapp"
+      - "mysql"
+---
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sDisallowedTags
+metadata:
+  name: container-image-must-not-have-latest-tag
+spec:
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+      - apiGroups: ["apps"]
+        kinds: ["Deployment", "StatefulSet", "DaemonSet"]
+    namespaces:
+      - "bankapp"
+      - "mysql"
+  parameters:
+    tags: ["latest"]
