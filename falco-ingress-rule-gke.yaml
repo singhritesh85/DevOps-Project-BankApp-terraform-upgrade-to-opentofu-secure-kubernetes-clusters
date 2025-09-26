@@ -1,0 +1,27 @@
+# kubectl create secret tls ingress-tls --key server.key --cert XXXXXXXXXXXXXXXX.crt -n falco
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: falco-ui-ingress
+  namespace: falco
+  annotations:
+    kubernetes.io/ingress.class: "gce" ### Specify the Ingress class
+    kubernetes.io/ingress.allow-http: "false"
+spec:
+  ingressClassName: "gce"
+  tls:
+  - hosts:
+    - falco.singhritesh85.com
+    secretName: ingress-tls
+  rules:
+  - host: "falco.singhritesh85.com"
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: falco-falcosidekick-ui
+            port:
+              number: 2802
