@@ -1,0 +1,10 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: csi-disk-cmek
+provisioner: pd.csi.storage.gke.io # Example for Google Persistent Disk CSI driver
+parameters:
+  type: pd-standard # Or pd-ssd for SSDs
+  disk-encryption-kms-key: projects/XXXX-XXXXXXX-XXXXXX/locations/us-central1/keyRings/dexter-gke-key-ring/cryptoKeys/bankapp-gke-disk-encryption-key
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
