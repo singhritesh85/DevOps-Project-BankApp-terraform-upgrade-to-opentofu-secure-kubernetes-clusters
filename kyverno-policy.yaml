@@ -1,0 +1,217 @@
+---
+### This policy restricts use of the Service type LoadBalancer ###
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: no-loadbalancer-service
+  annotations:
+    policies.kyverno.io/title: Disallow Service Type LoadBalancer
+    policies.kyverno.io/category: Sample
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Service
+    policies.kyverno.io/minversion: 1.6.0
+    policies.kyverno.io/description: >-
+      Especially in cloud provider environments, a Service having type LoadBalancer will cause the
+      provider to respond by creating a load balancer somewhere in the customer account. This adds
+      cost and complexity to a deployment. Without restricting this ability, users may easily
+      overrun established budgets and security practices set by the organization. This policy restricts
+      use of the Service type LoadBalancer.
+spec:
+  validationFailureAction: Enforce   ### Block the resource creation if the policy is violated
+  background: true
+  rules:
+  - name: no-LoadBalancer
+    match:
+      any:
+      - resources:
+          kinds:
+          - Service
+          namespaces:
+          - bankapp
+          - mysql
+    validate:
+      message: "Service of type LoadBalancer is not allowed."
+      pattern:
+        spec:
+          type: "!LoadBalancer"
+---
+### This policy validates that the image specifies a tag and that it is not called latest ###
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-latest-tag
+  annotations:
+    policies.kyverno.io/title: Disallow Latest Tag
+    policies.kyverno.io/category: Best Practices
+    policies.kyverno.io/minversion: 1.6.0
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      The ':latest' tag is mutable and can lead to unexpected errors if the
+      image changes. A best practice is to use an immutable tag that maps to
+      a specific version of an application Pod. This policy validates that the image
+      specifies a tag and that it is not called `latest`.
+spec:
+  validationFailureAction: Enforce   ### Block the resource creation if the policy is violated
+  background: true
+  rules:
+  - name: require-image-tag
+    match:
+      any:
+      - resources:
+          kinds:
+          - Pod
+          namespaces:
+          - bankapp
+          - mysql
+    validate:
+      message: "An image tag is required."
+      foreach:
+        - list: "request.object.spec.containers"
+          pattern:
+            image: "*:*"
+        - list: "request.object.spec.initContainers"
+          pattern:
+            image: "*:*"
+        - list: "request.object.spec.ephemeralContainers"
+          pattern:
+            image: "*:*"
+  - name: validate-image-tag
+    match:
+      any:
+      - resources:
+          kinds:
+          - Pod
+          namespaces:
+          - bankapp
+          - mysql
+    validate:
+      message: "Using a mutable image tag e.g. 'latest' is not allowed."
+      foreach:
+        - list: "request.object.spec.containers"
+          pattern:
+            image: "!*:latest"
+        - list: "request.object.spec.initContainers"
+          pattern:
+            image: "!*:latest"
+        - list: "request.object.spec.ephemeralContainers"
+          pattern:
+            image: "!*:latest"
+---
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-privileged-and-escalation
+  annotations:
+    policies.kyverno.io/title: Disallow Privileged and Privilege Escalation
+    policies.kyverno.io/category: Pod Security Standards (Restricted)
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Privileged mode disables most security mechanisms. Privilege escalation,
+      such as via set-user-ID or set-group-ID file mode, should not be allowed.
+      This policy ensures Pods do not request privileged mode and that
+      allowPrivilegeEscalation is set to false.
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: disallow-privileged-containers
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaces:
+              - bankapp
+              - mysql
+      validate:
+        message: "Privileged containers are disallowed."
+        pattern:
+          spec:
+            =(initContainers):
+              - =(securityContext):
+                  =(Privileged): "false"
+            containers:
+              - =(securityContext):
+                  =(Privileged): "false"
+
+    - name: disallow-privilege-escalation
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaces:
+              - bankapp
+              - mysql
+      validate:
+        message: "Privilege escalation is disallowed."
+        pattern:
+          spec:
+            =(initContainers):
+              - =(securityContext):
+                  =(allowPrivilegeEscalation): "false"
+            containers:
+              - =(securityContext):
+                  =(allowPrivilegeEscalation): "false"
+---
+### This policy validates that all containers have something specified for memory and CPU requests and memory limits ###
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-requests-limits
+  annotations:
+    policies.kyverno.io/title: Require Limits and Requests
+    policies.kyverno.io/category: Best Practices, EKS Best Practices
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/minversion: 1.6.0
+    policies.kyverno.io/description: >-
+      As application workloads share cluster resources, it is important to limit resources
+      requested and consumed by each Pod. It is recommended to require resource requests and
+      limits per Pod, especially for memory and CPU. If a Namespace level request or limit is specified,
+      defaults will automatically be applied to each Pod based on the LimitRange configuration.
+      This policy validates that all containers have something specified for memory and CPU
+      requests and memory limits.
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+  - name: validate-resources
+    match:
+      any:
+      - resources:
+          kinds:
+          - Pod
+          - Deployment
+          - StatefulSet
+          - DaemonSet
+          namespaces:
+          - bankapp
+          - mysql
+    validate:
+      message: "CPU and memory resource requests and memory limits are required for containers."
+      pattern:
+        spec:
+          containers:
+          - resources:
+              requests:
+                memory: "?*"
+                cpu: "?*"
+              limits:
+                memory: "?*"
+          =(initContainers):
+          - resources:
+              requests:
+                memory: "?*"
+                cpu: "?*"
+              limits:
+                memory: "?*"
+          =(ephemeralContainers):
+          - resources:
+              requests:
+                memory: "?*"
+                cpu: "?*"
+              limits:
+                memory: "?*"
