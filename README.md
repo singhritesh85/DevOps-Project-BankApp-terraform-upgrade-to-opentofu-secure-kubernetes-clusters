@@ -5,7 +5,7 @@ In AKS if EncryptionAtHost is not enabled at the subscription level then enable 
 az feature register --namespace Microsoft.Compute --name EncryptionAtHost
 ```
 ```
-To check envelope encryption is enabled or not run below command:-
+To check envelope encryption is enabled or not in GKE Standard Cluster run below command:-
 
 gcloud container clusters describe bankapp-gke-cluster --zone us-central1 --format="yaml(databaseEncryption)"
 ```
