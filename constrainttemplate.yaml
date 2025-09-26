@@ -1,0 +1,142 @@
+---
+apiVersion: templates.gatekeeper.sh/v1beta1
+kind: ConstraintTemplate
+metadata:
+  name: k8sdisallowprivileged
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sDisallowPrivileged
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8sdisallowprivileged
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          container.securityContext.privileged == true
+          msg := sprintf("Privileged container %v is not allowed", [container.name])
+        }
+
+        violation[{"msg": msg}] {
+          initContainer := input.review.object.spec.initContainers[_]
+          initContainer.securityContext.privileged == true
+          msg := sprintf("Privileged init container %v is not allowed", [initContainer.name])
+        }
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          container.securityContext.allowPrivilegeEscalation == true
+          msg := sprintf("allowPrivilegeEscalation container %v is not allowed", [container.name])
+        }
+        violation[{"msg": msg}] {
+          initContainer := input.review.object.spec.initContainers[_]
+          initContainer.securityContext.allowPrivilegeEscalation == true
+          msg := sprintf("allowPrivilegeEscalation init container %v is not allowed", [initContainer.name])                                                           }
+---
+apiVersion: templates.gatekeeper.sh/v1beta1
+kind: ConstraintTemplate
+metadata:
+  name: loadbalancerconstraint
+spec:
+  crd:
+    spec:
+      names:
+        kind: LoadBalancerConstraint
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package insomniacoder.constraint
+        violation[{"msg": msg}] {
+          input.review.kind.kind = "Service"
+          input.review.operation = "CREATE"
+          input.review.object.spec.type = "LoadBalancer"
+          msg := "Service type LoadBalancer are restricted"
+        }
+---
+apiVersion: templates.gatekeeper.sh/v1beta1
+kind: ConstraintTemplate
+metadata:
+  name: k8scontainerresourcerequirements
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sContainerResourceRequirements
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8scontainerresourcerequirements
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          not container.resources.requests.cpu
+          msg := sprintf("Container '%v' must have CPU requests defined", [container.name])
+        }
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          not container.resources.requests.memory
+          msg := sprintf("Container '%v' must have memory requests defined", [container.name])
+        }
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          not container.resources.limits.cpu
+          msg := sprintf("Container '%v' must have CPU limits defined", [container.name])
+        }
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          not container.resources.limits.memory
+          msg := sprintf("Container '%v' must have memory limits defined", [container.name])
+        }
+---
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8sdisallowedtags
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sDisallowedTags
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            tags:
+              type: array
+              description: Disallowed container image tags.
+              items:
+                type: string
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8sdisallowedtags
+        violation[{"msg": msg}] {
+            container := input_containers[_]
+            tags := [tag_with_prefix | tag := input.parameters.tags[_]; tag_with_prefix := concat(":", ["", tag])]
+            strings.any_suffix_match(container.image, tags)
+            msg := sprintf("container <%v> uses a disallowed tag <%v>; disallowed tags are %v", [container.name, container.image, input.parameters.tags])
+        }
+
+        violation[{"msg": msg}] {
+            container := input_containers[_]
+            not contains(container.image, ":")
+            msg := sprintf("container <%v> didn't specify an image tag <%v>", [container.name, container.image])
+        }
+
+        input_containers[c] {
+            c := input.review.object.spec.containers[_]
+        }
+        input_containers[c] {
+            c := input.review.object.spec.initContainers[_]
+        }
