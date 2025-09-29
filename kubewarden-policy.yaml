@@ -1,0 +1,147 @@
+---
+apiVersion: policies.kubewarden.io/v1
+kind: ClusterAdmissionPolicy
+metadata:
+  name: disallow-loadbalancer-in-restricted-namespace
+spec:
+  policyServer: default
+  module: registry://ghcr.io/kubewarden/policies/disallow-service-loadbalancer:v1.0.7
+  rules:
+    - apiGroups: [""]
+      apiVersions: ["v1"]
+      resources: ["services"]
+      operations: ["CREATE", "UPDATE"]
+  mutating: false   ### Indicates it is a Validating Admission Controller
+  namespaceSelector:
+    matchExpressions:
+      - key: kubernetes.io/metadata.name
+        operator: In
+        values:
+        - bankapp
+        - mysql
+  message: "Creating LoadBalancer services is not allowed in this cluster. Please use NodePort or ClusterIP instead."
+---
+apiVersion: policies.kubewarden.io/v1
+kind: ClusterAdmissionPolicy
+metadata:
+  name: privileged-pods
+spec:
+  module: registry://ghcr.io/kubewarden/policies/pod-privileged:v0.2.2
+  rules:
+  - apiGroups: [""]
+    apiVersions: ["v1"]
+    resources: ["pods"]
+    operations:
+    - CREATE
+    - UPDATE
+  - apiGroups: ["apps"]
+    apiVersions: ["v1"]
+    resources: ["deployments", "statefulsets", "daemonsets"]
+    operations: ["CREATE", "UPDATE"]
+  mutating: false
+  namespaceSelector:
+    matchExpressions:
+      - key: kubernetes.io/metadata.name
+        operator: In
+        values:
+        - bankapp
+        - mysql
+  message: "Creating Pod, DaemonSet, Deployment or StatefulSet are not allowed when Privileged is Set as true"
+---
+apiVersion: policies.kubewarden.io/v1
+kind: ClusterAdmissionPolicy
+metadata:
+  name: psp-allow-privilege-escalation
+spec:
+  module: registry://ghcr.io/kubewarden/policies/allow-privilege-escalation-psp:latest
+  rules:
+    - apiGroups:
+        - ""
+      apiVersions:
+        - v1
+      resources:
+        - pods
+      operations:
+        - CREATE
+        - UPDATE
+    - apiGroups: ["apps"]
+      apiVersions: ["v1"]
+      resources: ["deployments", "statefulsets", "daemonsets"]
+      operations: ["CREATE", "UPDATE"]
+  mutating: false
+  namespaceSelector:
+    matchExpressions:
+      - key: kubernetes.io/metadata.name
+        operator: In
+        values:
+        - bankapp
+        - mysql
+  settings:
+    default_allow_privilege_escalation: false
+  message: "Creating Pod, DaemonSet, Deployment or StatefulSet are not allowed when allowPrivilegeEscalation is Set as true"
+---
+apiVersion: policies.kubewarden.io/v1
+kind: ClusterAdmissionPolicy
+metadata:
+  name: enforce-resource-limits
+spec:
+  module: "registry://ghcr.io/kubewarden/policies/container-resources:v0.3.0"
+  rules:
+  - apiGroups: [""]
+    apiVersions: ["v1"]
+    resources: ["pods"]
+    operations: ["CREATE", "UPDATE"]
+  - apiGroups: ["apps"]
+    apiVersions: ["v1"]
+    resources: ["deployments", "statefulsets", "daemonsets"]
+    operations: ["CREATE", "UPDATE"]
+  mutating: false
+  settings:
+    cpu:
+      requests:
+        required: true
+      limits:
+        required: true
+      ignoreValues: true
+    memory:
+      requests:
+        required: true
+      limits:
+        required: true
+      ignoreValues: true
+  namespaceSelector:
+    matchExpressions:
+      - key: kubernetes.io/metadata.name
+        operator: In
+        values:
+        - bankapp
+        - mysql
+  message: "Creating Pod, DaemonSet, Deployment or StatefulSet are not allowed when resources, requests and limits are not set"
+---
+apiVersion: policies.kubewarden.io/v1
+kind: ClusterAdmissionPolicy
+metadata:
+  name: disallow-latest-tag
+spec:
+  module: "registry://ghcr.io/kubewarden/policies/trusted-repos:v0.2.0"
+  rules:
+    - apiGroups: [""]
+      apiVersions: ["v1"]
+      resources: ["pods"]
+      operations: ["CREATE", "UPDATE"]
+    - apiGroups: ["apps"]
+      apiVersions: ["v1"]
+      resources: ["deployments", "statefulsets", "daemonsets"]
+      operations: ["CREATE", "UPDATE"]
+  settings:
+    tags:
+      reject:
+      - latest
+  namespaceSelector:
+    matchExpressions:
+      - key: kubernetes.io/metadata.name
+        operator: In
+        values:
+        - bankapp
+        - mysql
+  message: "In this namespace latest tag cannot be not applied"
