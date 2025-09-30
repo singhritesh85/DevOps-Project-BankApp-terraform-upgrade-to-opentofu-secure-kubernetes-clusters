@@ -60,8 +60,5 @@ resource "google_compute_instance" "vm_instance" {
   metadata_startup_script = file("startup.sh")
 
   tags = ["allow-ssh"]
-  labels = {
-    "backup-plan" = "${var.prefix}-backup-plan"
-  }
 
 }
